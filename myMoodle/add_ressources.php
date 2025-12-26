@@ -1,48 +1,42 @@
 <?php
 session_start();
 
-// Vérifier que l'utilisateur est connecté
-if (!isset($_SESSION['est_connecte']) || $_SESSION['est_connecte'] !== true) {
-    header("Location: connection.php");
+require_once __DIR__ . '/class/Database.php';
+
+/* sécurité */
+if (empty($_SESSION['est_connecte'])) {
+    header("Location: connexion.php");
     exit();
 }
 
-$host = 'localhost';
-$dbname = 'projetphp';
-$db_user = 'BDPatrickProjet25';
-$db_pass = 'Samourai3';
+$db = new Database();
 
-try {
-    $connexion = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $db_user, $db_pass);
-    $connexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
-    die("Erreur de connexion : " . $e->getMessage());
-}
+$is_connected = true;
+$is_admin     = $_SESSION['est_admin'] ?? false;
 
-// Récupérer les infos utilisateur
 $user_first_name = $_SESSION['prenom'] ?? '';
-$user_last_name = $_SESSION['nom'] ?? '';
-$username_session = $_SESSION['matricule'] ?? '';
+$user_last_name  = $_SESSION['nom'] ?? '';
 
-// Vérifier que l'ID du cours est fourni
-if (!isset($_GET['cours_id']) || !is_numeric($_GET['cours_id'])) {
-    die("Cours invalide");
+$from_cours = false;
+$cours_id   = null;
+$nom_cours  = null;
+
+/* si on vient d’un cours précis */
+if (isset($_GET['cours_id']) && is_numeric($_GET['cours_id'])) {
+    $from_cours = true;
+    $cours_id   = (int) $_GET['cours_id'];
+
+    $cours = $db->get_cours_by_id($cours_id);
+    if (!$cours) {
+        die("Cours introuvable");
+    }
+
+    $nom_cours = $cours['nom'];
 }
 
-$cours_id = (int) $_GET['cours_id'];
+/* liste complète des cours */
+$cours_liste = $db->get_all_cours();
 
-// Récupérer les infos du cours
-$sql_cours = "SELECT nom FROM cours WHERE id = :id";
-$stmt_cours = $connexion->prepare($sql_cours);
-$stmt_cours->bindValue(':id', $cours_id, PDO::PARAM_INT);
-$stmt_cours->execute();
-$cours = $stmt_cours->fetch(PDO::FETCH_ASSOC);
-
-if (!$cours) {
-    die("Cours introuvable");
-}
-
-$lesson_name = $cours['nom'];
 ?>
 
 <!DOCTYPE html>
@@ -53,6 +47,7 @@ $lesson_name = $cours['nom'];
     <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    
     <title>Ajouter une ressource - iLearn</title>
 </head>
 <body>
@@ -67,20 +62,30 @@ $lesson_name = $cours['nom'];
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto me-4">
-                    <li class="nav-item"><a class="nav-link" href="index.php">Accueil</a></li>
-                    <li class="nav-item"><a class="nav-link" href="cour.php?id=<?php echo $cours_id; ?>">Retour au cours</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Historique</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="index.php">Accueil</a></li>
+                    <?php if($is_connected && $is_admin): ?>
+                        <li class="nav-item"><a class="nav-link" href="createAccount.php">Créer un compte</a></li>
+                        <li class="nav-item"><a class="nav-link" href="admin_ressources.php">Gérer les ressources</a></li>
+                    <?php endif;?> 
+                    <?php if ($is_connected): ?>
+                        <li class="nav-item"><a class="nav-link" href="historique.php">Historique</a></li>
+                    <?php endif; ?>
+                    
                 </ul>
-                <div class="d-flex flex-column flex-lg-row align-items-center gap-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <img src="img/buste.jpg" class="rounded-circle" width="36" height="36" alt="avatar">
-                        <div>
-                            <div class="text-muted small"><?php echo htmlspecialchars($user_first_name); ?></div>
-                            <div class="fw-semibold"><?php echo htmlspecialchars($user_last_name); ?></div>
+                <?php if ($is_connected): ?>
+                    <div class="d-flex flex-column flex-lg-row align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="img/buste.jpg" class="rounded-circle" width="36" height="36" alt="avatar">
+                                <div class="align-items-start">
+                                    <div class="text-muted small"><?php echo htmlspecialchars($user_first_name); ?></div>
+                                    <div class="fw-semibold"><?php echo htmlspecialchars($user_last_name); ?></div>
+                                </div>
+                            </div>
+                        <a href="disconnected.php" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">Se déconnecter</a>
                         </div>
-                    </div>
-                    <a href="disconnected.php" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">Se déconnecter</a>
-                </div>
+                <?php else: ?>
+                    <a href="connexion.php" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">Connexion</a>
+                <?php endif; ?>
             </div>
         </div>
     </nav>
@@ -117,17 +122,54 @@ $lesson_name = $cours['nom'];
                 <div class="card shadow">
                     <div class="card-header bg-danger text-white">
                         <h3 class="mb-0">📤 Ajouter une ressource</h3>
-                        <small>Cours : <?php echo htmlspecialchars($lesson_name); ?></small>
+                        <small>Selectionnez ou créer un cours</small>
                     </div>
                     <div class="card-body">
                         <p class="text-muted">
                             Votre ressource sera soumise à validation par un administrateur avant d'être publiée.
                         </p>
                         
+                        
+
                         <form action="process_add_ressources.php" method="POST" enctype="multipart/form-data">
-                            <!-- Champ caché pour l'ID du cours -->
-                            <input type="hidden" name="cours_id" value="<?php echo $cours_id; ?>">
-                            
+                            <?php if ($from_cours): ?>
+                            <!-- Cours imposé -->
+                            <input type="hidden" name="cours_id" value="<?= $cours_id ?>">
+                            <div class="mb-3">
+                                <label class="form-label">Cours</label>
+                                <input type="text"
+                                    class="form-control"
+                                    value="<?php echo $nom_cours; ?>"
+                                    disabled>
+                            </div>
+                            <?php else: ?>
+                                <div class="mb-3">
+                                    <label class="form-label">Cours *</label>
+                                    <select class="form-select" name="cours_select" id="cours_select" required>
+                                        <option value="">-- Sélectionner un cours --</option>
+                                        <?php foreach ($cours_liste as $c): ?>
+                                            <option value="<?= $c['id'] ?>">
+                                            <?= htmlspecialchars($c['nom']) ?> (<?= $c['bloc'] ?> – <?= $c['section'] ?>)
+                                        </option>
+                                        <?php endforeach; ?>
+                                        <option value="autre">Autre (nouveau cours)</option>
+                                    </select>
+                                </div>
+                                <div id="new-course-zone" style="display:none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Nom du cours *</label>
+                                        <input type="text" name="new_nom" class="form-control">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Bloc *</label>
+                                        <input type="text" name="new_bloc" class="form-control">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Section *</label>
+                                        <input type="text" name="new_section" class="form-control">
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                             <!-- Titre de la ressource -->
                             <div class="mb-3">
                                 <label for="titre" class="form-label">Titre de la ressource *</label>
@@ -164,8 +206,8 @@ $lesson_name = $cours['nom'];
                             </p>
                             
                             <div class="d-flex gap-2">
-                                <button type="submit" class="btn btn-danger">Soumettre la ressource</button>
-                                <a href="cour.php?id=<?php echo $cours_id; ?>" class="btn btn-outline-secondary">Annuler</a>
+                                <button type="submit" href="add_ressources.php" class="btn btn-danger">Soumettre la ressource</button>
+                                <a href="index.php" class="btn btn-outline-secondary">Annuler</a>
                             </div>
                         </form>
                     </div>
@@ -183,7 +225,17 @@ $lesson_name = $cours['nom'];
             </div>
         </div>
     </main>
-    
+    <script>
+        const coursSelect = document.getElementById('cours_select');
+        const newCourseZone = document.getElementById('new-course-zone');
+
+        if (coursSelect) {
+            coursSelect.addEventListener('change', function () {
+                newCourseZone.style.display =
+                    (this.value === 'autre') ? 'block' : 'none';
+            });
+        }
+    </script>
     <script>
         // Afficher/cacher les zones selon le type sélectionné
         document.getElementById('type').addEventListener('change', function() {

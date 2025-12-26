@@ -1,6 +1,7 @@
 <?php
-
 session_start();
+
+require_once __DIR__ . '/class/Database.php';
 
 if (
     !isset($_SESSION['est_connecte']) ||
@@ -12,31 +13,23 @@ if (
     exit();
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if (!isset($_GET['id'], $_GET['action'])) {
     header("Location: admin_ressources.php");
     exit();
 }
 
-$ressource_id = (int) ($_POST['ressource_id'] ?? 0);
-$action = $_POST['action'] ?? '';
+$ressource_id = (int) $_GET['id'];
+$action = $_GET['action'];
 
-if ($ressource_id <= 0 || !in_array($action, ['approuve', 'rejete'])) {
+if ($ressource_id <= 0 || !in_array($action, ['approuve', 'rejete'], true)) {
     header("Location: admin_ressources.php");
     exit();
 }
 
-$statut = $action; // approuve ou rejete
+$db = new Database();
 
-$stmt = $connexion->prepare("
-    UPDATE ressources
-    SET statut = :statut
-    WHERE id = :id
-");
+$db->update_ressource_status($ressource_id, $action);
 
-$stmt->bindValue(':statut', $statut, PDO::PARAM_STR);
-$stmt->bindValue(':id', $ressource_id, PDO::PARAM_INT);
-$stmt->execute();
 
 header("Location: admin_ressources.php");
 exit();
-?>

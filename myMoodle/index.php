@@ -1,71 +1,23 @@
 <?php
 session_start();
 
+require_once __DIR__ . '/class/Database.php';
 
-$host = 'localhost';
-$dbname = 'projetphp';
-$db_user = 'BDPatrickProjet25';
-$db_pass = 'Samourai3';
+$db = new Database();
 
-try {
-    $connexion = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $db_user, $db_pass);
-    $connexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $connexion->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-} catch(PDOException $e) {
-    die("Erreur de connexion : " . $e->getMessage());
-}
-
-$is_connected = isset($_SESSION['est_connecte']) && $_SESSION['est_connecte'] === true;
+$is_connected = !empty($_SESSION['est_connecte']);
+$is_admin     = $_SESSION['est_admin'] ?? false;
 
 $user_first_name = $_SESSION['prenom'] ?? 'Invité';
-$user_last_name = $_SESSION['nom'] ?? '';
-$is_admin = $_SESSION['est_admin'] ?? false;
+$user_last_name  = $_SESSION['nom'] ?? '';
+$avatar = (
+    !empty($_SESSION['avatar']) && file_exists($_SESSION['avatar'])
+)
+    ? $_SESSION['avatar']
+    : 'img/buste.jpg';
 
-$sql = "SELECT 
-    c.id,
-    c.nom,
-    c.bloc,
-    c.section,
-    COUNT(r.id) AS nb_ressources,
-    MAX(r.date_ajout) AS derniere_ressource
-FROM cours c
-JOIN ressources r 
-    ON r.cours_id = c.id
-    AND r.statut = 'approuve'
-GROUP BY c.id, c.nom, c.bloc, c.section
-ORDER BY derniere_ressource DESC;";
-
-$stmt = $connexion->query($sql);
-$cours = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-
-if (
-    isset($_POST['matricule'], $_POST['password']) &&
-    $_POST['matricule'] !== '' &&
-    $_POST['password'] !== ''
-) {
-    $matricule = $_POST['matricule'];
-    $password = $_POST['password'];
-
-    $prepQuery = $connexion->prepare("SELECT id, mot_de_passe, nom, prenom, est_admin
-                                            FROM utilisateurs
-                                            WHERE matricule = :matricule
-                                            ");
-    $prepQuery->bindValue(':matricule', $matricule, PDO::PARAM_STR);
-    $prepQuery->execute();
-
-    if($ligne = $prepQuery->fetch(PDO::FETCH_ASSOC)) {
-        if (password_verify($password, $ligne['mot_de_passe'])) {
-            $_SESSION['user_id']      = $ligne['id'];
-            $_SESSION['nom']          = $ligne['nom'];
-            $_SESSION['prenom']       = $ligne['prenom'];
-            $_SESSION['est_admin']    = (bool) $ligne['est_admin'];
-            $_SESSION['est_connecte'] = true;
-            header("Location: index.php");
-            exit();
-        }
-    }
-}
+/* récupération des cours avec ressources approuvées */
+$cours = $db->get_cours_with_ressources(); // méthode à ajouter
 
 ?>
 
@@ -81,7 +33,7 @@ if (
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
         <div class="container-fluid px-5">
-            <a class="navbar-brand d-flex align-items-center fw-bold fs-4" href="index.html">
+            <a class="navbar-brand d-flex align-items-center fw-bold fs-4" href="index.php">
                 <span class="bg-danger text-white p-3 me-2 rounded">iL</span>
                 iLearn
             </a>
@@ -91,19 +43,19 @@ if (
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto me-4">
                     <li class="nav-item"><a class="nav-link active" href="index.php">Accueil</a></li>
-                    <li class="nav-item"><a class="nav-link" href="index.php">Cours</a></li>
                     <?php if($is_connected && $is_admin): ?>
+                        <li class="nav-item"><a class="nav-link" href="createAccount.php">Créer un compte</a></li>
                         <li class="nav-item"><a class="nav-link" href="admin_ressources.php">Gérer les ressources</a></li>
                     <?php endif;?> 
                     <?php if ($is_connected): ?>
-                        <li class="nav-item"><a class="nav-link" href="#">Historique</a></li>
+                        <li class="nav-item"><a class="nav-link" href="historique.php">Historique</a></li>
                     <?php endif; ?>
                     
                 </ul>
                 <?php if ($is_connected): ?>
                     <div class="d-flex flex-column flex-lg-row align-items-center gap-3">
                             <div class="d-flex align-items-center gap-2">
-                                <img src="img/buste.jpg" class="rounded-circle" width="36" height="36" alt="avatar">
+                                <img src="<?= htmlspecialchars($avatar) ?>" class="rounded-circle" width="36" height="36" alt="avatar">
                                 <div class="align-items-start">
                                     <div class="text-muted small"><?php echo htmlspecialchars($user_first_name); ?></div>
                                     <div class="fw-semibold"><?php echo htmlspecialchars($user_last_name); ?></div>
@@ -118,11 +70,17 @@ if (
         </div>
     </nav>
     <div class="container py-5">
-        <h1 class="fw-bold mb-4">Cours consultables anonymement</h1>
+        <h1 class="fw-bold mb-4">Cours consultables</h1>
+        <?php if($is_connected): ?>
+            <a target="_blank" href="add_ressources.php" class="btn btn-outline-dark mt-2">
+                Ajouter une ressource +
+            </a>
+        <?php endif; ?>
         <hr>
         <div class="mb-5">
             <h4 class="mb-3">Effectuer une recherche</h4>
             <input type="text" class="form-control bg-light border-0 rounded-3 p-3 w-50" placeholder="Ex: Services réseaux">
+            
         </div>
 
         <div class="row g-4 mb-5">
@@ -137,8 +95,8 @@ if (
             ?>
             
             <div class="col-md-4">
-                <div class="card bg-secondary bg-opacity-25 border-0 rounded-4 h-100">
-                    <a href="cour.php?id=<?= $c['id']?>" class="text-decoration-none text-black">
+                <div class="card bg-<?php echo $couleur; ?> bg-opacity-25 border-0 rounded-4 h-100">
+                    <a href="lesson.php?id=<?= $c['id']?>" class="text-decoration-none text-black">
                         <div class="card-body p-4 d-flex flex-column justify-content-between" style="min-height: 300px;">
                             <h3 class="card-title fw-bold fs-2"><?php echo $c['nom'] ?></h3>
                             <div>

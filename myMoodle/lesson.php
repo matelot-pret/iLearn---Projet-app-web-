@@ -1,58 +1,35 @@
 <?php
 session_start();
 
-$host = 'localhost';
-$dbname = 'projetphp';
-$db_user = 'BDPatrickProjet25';
-$db_pass = 'Samourai3';
+require_once __DIR__ . '/class/Database.php';
 
+$db = new Database();
 
-try {
-    $connexion = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $db_user, $db_pass);
-    $connexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $connexion->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-} catch(PDOException $e) {
-    die("Erreur de connexion : " . $e->getMessage());
-}
-
-$is_connected = isset($_SESSION['est_connecte']) && $_SESSION['est_connecte'] === true;
-
-if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-    die("Cours invalide");
-}
+$is_connected = !empty($_SESSION['est_connecte']);
+$is_admin     = $_SESSION['est_admin'] ?? false;
 
 $user_first_name = $_SESSION['prenom'] ?? 'Invité';
-$user_last_name = $_SESSION['nom'] ?? '';
-$is_admin = $_SESSION['est_admin'];
+$user_last_name  = $_SESSION['nom'] ?? '';
+$user_id         = $_SESSION['user_id'] ?? 0;
 
+/* validation cours */
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     die("Cours invalide");
 }
 
 $cours_id = (int) $_GET['id'];
-$sql_cours ="SELECT nom FROM cours WHERE id = :id";
-$stmt_cours = $connexion->prepare($sql_cours);
-$stmt_cours->bindValue(':id', $cours_id, PDO::PARAM_INT);
-$stmt_cours->execute();
-$cours = $stmt_cours->fetch(PDO::FETCH_ASSOC);
 
-if(!$cours){
+/* récupération cours */
+$cours = $db->get_cours_by_id($cours_id);
+if (!$cours) {
     die("Cours introuvable");
 }
 
 $lesson_name = $cours['nom'];
 
+/* récupération ressources */
+$ressources = $db->get_ressources_by_cours($cours_id, $user_id);
 
-$sql = "SELECT id, titre, type, contenu, date_ajout
-FROM ressources
-WHERE cours_id = :cours_id
-AND statut = 'approuve'
-ORDER BY date_ajout DESC
-";
-$stmt = $connexion->prepare($sql);
-$stmt->bindValue(':cours_id', $cours_id, PDO::PARAM_INT);
-$stmt->execute();
-$ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 
@@ -69,7 +46,7 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
         <div class="container-fluid px-5">
-            <a class="navbar-brand d-flex align-items-center fw-bold fs-4" href="index.html">
+            <a class="navbar-brand d-flex align-items-center fw-bold fs-4" href="index.php">
                 <span class="bg-danger text-white p-3 me-2 rounded">iL</span>
                 iLearn
             </a>
@@ -78,13 +55,13 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto me-4">
-                    <li class="nav-item"><a class="nav-link active" href="index.html">Accueil</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Cours</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="index.php">Accueil</a></li>
                     <?php if($is_connected && $is_admin): ?>
+                        <li class="nav-item"><a class="nav-link" href="createAccount.php">Créer un compte</a></li>
                         <li class="nav-item"><a class="nav-link" href="admin_ressources.php">Gérer les ressources</a></li>
                     <?php endif;?> 
                     <?php if ($is_connected): ?>
-                        <li class="nav-item"><a class="nav-link" href="#">Historique</a></li>
+                        <li class="nav-item"><a class="nav-link" href="historique.php">Historique</a></li>
                     <?php endif; ?>
                     
                 </ul>
@@ -100,7 +77,7 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <a href="disconnected.php" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">Se déconnecter</a>
                     </div>
                 <?php else: ?>
-                    <a href="connecton.php" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">Connexion</a>
+                    <a href="connexion.php" class="btn btn-outline-dark rounded-pill px-4 text-decoration-none">Connexion</a>
                 <?php endif; ?>
             </div>
         </div>
@@ -109,7 +86,7 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <header class="mb-4">
             <h2 class="fw-bold"><?php echo htmlspecialchars($lesson_name); ?></h2>
             <?php if ($is_connected): ?>
-                <a href="add_ressources.php?cours_id=<?php echo $cours_id; ?>" class="btn btn-outline-dark mt-2">
+                <a target="_blank" href="add_ressources.php?cours_id=<?php echo $cours_id; ?>" class="btn btn-outline-dark mt-2">
                     Ajouter une ressource +
                 </a>
             <?php endif; ?>
@@ -133,22 +110,19 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             <?php else: ?>
                 <?php foreach($ressources as $ressource): 
-                    if ($ressource['type'] === 'url' && !empty($ressource['url'])) {
-                        $lien = htmlspecialchars($ressource['url']);
-                    } else {
-                        $lien = htmlspecialchars($ressource['contenu']);
-                    }
-                    
-                    $file_read = false;
-                    $if_consulted = $file_read ? "Vu" : "Pas vu";
-                    $button_style = $file_read ? "btn-success" : "btn-secondary";
+
+                    $lien = htmlspecialchars($ressource['contenu']);
+                    $est_lu = (bool) $ressource['est_lue'];
+                    $if_consulted = $est_lu ? "Lu" : "Non lu";
+                    $button_style = $est_lu ? "btn-success" : "btn-outline-secondary";
+
                 ?>
                 
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center border-top border-3 border-danger-subtle pt-3 pb-2">
                     <div class="mb-2 mb-md-0 flex-grow-1">
                         <?php if ($is_connected): ?>
-                            <a class="text-decoration-none text-dark fw-semibold" href="<?php echo $lien; ?>" target="_blank">
-                                <?php echo htmlspecialchars($ressource['titre']); ?>
+                            <a href="<?= $lien ?>" target="_blank" class="text-decoration-none text-dark fw-semibold">
+                                <?= htmlspecialchars($ressource['titre']); ?>
                             </a>
                         <?php else: ?>
                             <span class="ressource-locked fw-semibold" title="Connectez-vous pour accéder à cette ressource">
@@ -163,9 +137,16 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                     
                     <?php if ($is_connected): ?>
-                        <span class="btn <?php echo $button_style; ?> btn-sm rounded-pill">
-                            <?php echo $if_consulted; ?>
-                        </span>
+                        <?php if (!$est_lu): ?>
+                            <a href="mark_as_read.php?id=<?= $ressource['id'] ?>&cours_id=<?= $cours_id ?>"
+                            class="btn btn-outline-success btn-sm rounded-pill">
+                            ✔ Marquer comme lu
+                            </a>
+                        <?php else: ?>
+                            <span class="badge bg-success rounded-pill">
+                                ✔ Lu
+                            </span>
+                        <?php endif; ?>
                     <?php else: ?>
                         <span class="badge bg-secondary">Connexion requise</span>
                     <?php endif; ?>
@@ -180,6 +161,7 @@ $ressources = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
+            <a href="index.php" class="btn btn-outline-dark mt-3">← Retour</a>
         </div>
     </main>
 </body>

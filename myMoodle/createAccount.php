@@ -1,8 +1,13 @@
 <?php 
 session_start();
 
-if(!isset($_SESSION['est_connecte']) || $_SESSION['est_connecte'] !== true){
-    header("Location:: connexion.php");
+if (
+    !isset($_SESSION['est_connecte']) ||
+    $_SESSION['est_connecte'] !== true ||
+    !isset($_SESSION['est_admin']) ||
+    $_SESSION['est_admin'] !== true
+) {
+    header("Location: connexion.php");
     exit();
 }
 
@@ -31,8 +36,8 @@ if(!isset($_SESSION['est_connecte']) || $_SESSION['est_connecte'] !== true){
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto me-4">
                     <li class="nav-item"><a class="nav-link" href="index.php">Accueil</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Cours</a></li>
                     <li class="nav-item"><a class="nav-link active" href="createAccounts.php">Créer un compte</a></li>
+                    <li class="nav-item"><a class="nav-link" href="admin_ressources.php">Gérer les ressources</a></li>
                 </ul>
                 <div class="d-flex flex-column flex-lg-row align-items-center gap-3">
                     <div class="d-flex align-items-center gap-2">
@@ -83,14 +88,20 @@ if(!isset($_SESSION['est_connecte']) || $_SESSION['est_connecte'] !== true){
                 <label for="prenom" class="col-12" >Prenom*<br>
                     <input type="text" id="prenom" class="form-control rounded" name="prenom" required>
                 </label>
-                <label for="username" class="mb-5 col-12">Username*<br>
-                    <input type="text" id="username" class="form-control rounded" name="username" required>
+                <label for="matricule" class="mb-5 col-12">Matricule*<br>
+                    <input type="text" id="matricule" class="form-control rounded" name="matricule" required>
                 </label>
+                <span>Type de compte :</span>
+                <select name="est_admin" class="form-select"> 
+                    <option value="0">Utilisateur</option>
+                    <option value="1">Administrateur</option>
+                </select>
+
                 <label for="Password" class=" col-12">Mot de passe*<br>
-                    <input type="password" id="Password" class="form-control rounded mb-2" name="Password" minlength="8" required>
+                    <input type="password" id="password" class="form-control rounded mb-2" name="password" minlength="8" required>
                 </label>
-                <label for="Password-confirm" class=" col-12">Resaisissez le mot de passe*<br>
-                    <input type="password" id="Password-confirm" class="rounded mb-3" name="Password-confirm" minlength="8" required>
+                <label for="password_confirm" class=" col-12">Resaisissez le mot de passe*<br>
+                    <input type="password" id="password_confirm" class="rounded mb-3" name="password_confirm" minlength="8" required>
                 </label> 
                 
                 <label for="avatar" class="col-12 mb-5">Avatar (optionnel)<br>
@@ -99,7 +110,7 @@ if(!isset($_SESSION['est_connecte']) || $_SESSION['est_connecte'] !== true){
                 </label>
 
                 <p class="mb-5 text-muted"><small>Les éléments avec (*) sont obligatoire</small></p>                
-                <button type="submit" class="btn btn-secondary d-block mt-5 mx-auto">Creer le compte</button>
+                <button type="submit" class="btn btn-outline-danger d-block mt-5 mx-auto">Creer le compte</button>
             </form>
         </section>
     </main>
