@@ -1,0 +1,27 @@
+
+# Désactiver l’indexation
+Options -Indexes
+
+# Bloquer l’accès aux fichiers sensibles
+<FilesMatch "\.(env|sql|ini|log|conf|yml|yaml|md)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquer l’exécution de scripts dans uploads
+<FilesMatch "^uploads/.*\.(php|phtml|php3|php4|php5|phar)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquer les méthodes HTTP dangereuses
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} ^(TRACE|DELETE|TRACK|OPTIONS)$
+    RewriteRule .* - [F]
+</IfModule>
+
+# En-têtes de sécurité
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>
