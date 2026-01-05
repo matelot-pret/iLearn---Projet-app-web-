@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Red rectangle background (vertical) -->
+  <rect x="25" y="10" width="50" height="80" rx="5" fill="#DC2626"/>
+  
+  <!-- White "iL" text -->
+  <text x="50" y="62" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="white" text-anchor="middle">iL</text>
+</svg>
